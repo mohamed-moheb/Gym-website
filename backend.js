@@ -4,7 +4,10 @@ const db_access = require("./db.js");
 const db = db_access.db;
 const app = express();
 const port = 8888;
-
+const cors = require('cors');
+app.use(cors({
+  origin: 'http://localhost:3001',  // Allow frontend on this port
+}));
 app.use(express.json());
 
 /* ==============================
@@ -16,25 +19,25 @@ app.post("/user/register", (req, res) => {
   const { name, email, password, isAdmin } = req.body;
 
   if (!name || !email || !password) {
-    return res.status(400).send("Missing required fields: name, email, or password");
+    return res.status(400).json({ error: 'All fields are required' });
   }
 
   bcrypt.hash(password, 8, (err, hashedPassword) => {
     if (err) {
       console.error("Error hashing password:", err.message);
-      return res.status(500).send("Internal server error while hashing password");
-    }
+      return res.status(500).json({ error: 'Password hashing error.' });
+      }
 
     const query = `INSERT INTO USER (name, email, password, isAdmin, invitationsLeft) VALUES (?, ?, ?, ?, 10)`;
     db.run(query, [name, email, hashedPassword, isAdmin ? 1 : 0], (err) => {
       if (err) {
         console.error("Database error:", err.message);
         if (err.message.includes("UNIQUE constraint failed")) {
-          return res.status(400).send("Email already exists");
+          return res.status(400).json({ error: 'Email already exists.' });
         }
-        return res.status(500).send("Error saving user to database");
-      }
-      res.status(200).send("Registration successful");
+        return res.status(500).json({ error: 'Error saving user to Database.' });
+    }
+    return res.status(200).json({ message: 'Registration successful!' });
     });
   });
 });
