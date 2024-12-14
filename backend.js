@@ -6,15 +6,13 @@ const app = express();
 const port = 8888;
 const cors = require('cors');
 app.use(cors({
-  origin: 'http://localhost:3001',  // Allow frontend on this port
+  origin: 'http://localhost:3001',  
 }));
 app.use(express.json());
 
-/* ==============================
-   User Registration and Login
-   ============================== */
 
-// User signup
+
+
 app.post("/user/register", (req, res) => {
   const { name, email, password, isAdmin } = req.body;
 
@@ -42,11 +40,11 @@ app.post("/user/register", (req, res) => {
   });
 });
 
-// User login
+
 app.post("/user/login", (req, res) => {
   const { email, password } = req.body;
 
-  // Check for missing fields
+  
   if (!email || !password) {
     return res.status(400).send("Email and password are required.");
   }
@@ -77,91 +75,69 @@ app.post("/user/login", (req, res) => {
   });
 });
 
-/* ==============================
-   Invitation Management
-   ============================== */
 
-// Invite a friend
 app.post("/user/invite", (req, res) => {
   const { userId, invitedName, invitedAge, invitedEmail, invitedPhone } = req.body;
 
-  // Check for missing fields
   if (!userId || !invitedName || !invitedAge || !invitedEmail || !invitedPhone) {
-    return res.status(400).send("All fields (userId, invitedName, invitedAge, invitedEmail, invitedPhone) are required.");
+    return res.status(400).send("All fields are required.");
   }
 
   const checkInvitationsQuery = `SELECT invitationsLeft FROM USER WHERE id = ?`;
-  db.get(checkInvitationsQuery, [userId], (err, user) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).send("Error checking user invitations");
-    }
 
-    if (!user) return res.status(404).send("User not found");
-    if (user.invitationsLeft <= 0) {
-      return res.status(400).send("No invitations left");
-    }
+  db.get(checkInvitationsQuery, [userId], (err, user) => {
+    if (err) return res.status(500).send("Error checking user invitations.");
+    if (!user) return res.status(404).send("User not found.");
+    if (user.invitationsLeft <= 0) return res.status(400).send("No invitations left.");
 
     const createInvitationQuery = `
       INSERT INTO INVITATIONS (userId, invitedName, invitedAge, invitedEmail, invitedPhone)
       VALUES (?, ?, ?, ?, ?)
     `;
-    db.run(
-      createInvitationQuery,
-      [userId, invitedName, invitedAge, invitedEmail, invitedPhone],
-      (err) => {
-        if (err) {
-          console.error(err);
-          return res.status(500).send("Error creating invitation");
-        }
 
-        const updateInvitationsQuery = `
-          UPDATE USER SET invitationsLeft = invitationsLeft - 1 WHERE id = ?
-        `;
-        db.run(updateInvitationsQuery, [userId], (err) => {
-          if (err) {
-            console.error(err);
-            return res.status(500).send("Error updating invitations count");
-          }
-          res.status(200).send("Invitation sent successfully");
+    db.run(createInvitationQuery, [userId, invitedName, invitedAge, invitedEmail, invitedPhone], function (err) {
+      if (err) return res.status(500).send("Error creating invitation.");
+      const updateInvitationsQuery = `UPDATE USER SET invitationsLeft = invitationsLeft - 1 WHERE id = ?`;
+      db.run(updateInvitationsQuery, [userId], (err) => {
+        if (err) return res.status(500).send("Error updating invitations count.");
+        res.status(200).send({
+          success: true,
+          message: "Invitation sent successfully",
         });
-      }
-    );
+      });
+    });
   });
 });
 
 
-app.put("/admin/reset-invitations", (req, res) => {
-  const { userId } = req.body;
+app.get("/user/:userId/invitations", (req, res) => {
+  const { userId } = req.params;
 
-  // Check if userId is provided in the request body
-  if (!userId) {
-    return res.status(400).send("userId is required in the request body.");
-  }
+  const checkInvitationsQuery = `SELECT invitationsLeft FROM USER WHERE id = ?`;
 
-  const query = `
-    UPDATE USER SET invitationsLeft = 10 WHERE id = ?
-  `;
-  db.run(query, [userId], (err) => {
-    if (err) return res.status(500).send("Error resetting invitations");
-    res.status(200).send("User invitations reset successfully");
+  db.get(checkInvitationsQuery, [userId], (err, user) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).send("Error fetching invitations");
+    }
+
+    if (!user) {
+      return res.status(404).send("User not found");
+    }
+    res.status(200).json({ invitationsLeft: user.invitationsLeft });
   });
 });
 
-/* ==============================
-   Class Management (Admin Only)
-   ============================== */
 
-// Add a new class
 app.post("/admin/class/add", (req, res) => {
   const { name, coachName, dayOfWeek, timeSlot, duration, availableSlots } = req.body;
 
-  // Check for missing fields
+  
   if (!name || !coachName || !dayOfWeek || !timeSlot || !duration) {
     return res.status(400).send("Name, coachName, dayOfWeek, timeSlot, and duration are required.");
   }
 
-  // Default availableSlots to 15 if not provided
+  
   const defaultAvailableSlots = 15;
   const query = `INSERT INTO CLASS (name, coachName, dayOfWeek, timeSlot, duration, availableSlots) VALUES (?, ?, ?, ?, ?, ?)`;
 
@@ -172,19 +148,44 @@ app.post("/admin/class/add", (req, res) => {
 });
 
 app.put("/admin/class/edit", (req, res) => {
-  const { classId, coachName, timeSlot, dayOfWeek } = req.body; 
+  const { classId, coachName, timeSlot, dayOfWeek } = req.body;
 
-  if (!classId) {
-    return res.status(400).send("Class ID is required in the request body.");
+  
+  if (!classId || !coachName || !timeSlot || !dayOfWeek) {
+    return res
+      .status(400)
+      .send("All fields (classId, coachName, timeSlot, dayOfWeek) are required.");
   }
 
-  const query = `UPDATE CLASS SET coachName = ?, timeSlot = ?, dayOfWeek = ? WHERE id = ?`;
+  const updateQuery = `
+    UPDATE CLASS 
+    SET coachName = ?, timeSlot = ?, dayOfWeek = ? 
+    WHERE id = ?`;
 
-  db.run(query, [coachName, timeSlot, dayOfWeek, classId], (err) => {
-    if (err) return res.status(500).send("Error updating class");
-    res.status(200).send("Class updated successfully");
+  const getClassesQuery = `SELECT * FROM CLASS`;
+
+  
+  db.run(updateQuery, [coachName, timeSlot, dayOfWeek, classId], function (err) {
+    if (err) {
+      console.error("Error updating class:", err.message);
+      return res.status(500).send("Error updating class in the database.");
+    }
+
+    db.all(getClassesQuery, [], (err, rows) => {
+      if (err) {
+        console.error("Error fetching updated classes:", err.message);
+        return res.status(500).send("Error fetching updated classes.");
+      }
+
+      res.status(200).json({
+        message: "Class updated successfully.",
+        classes: rows,
+      });
+    });
   });
 });
+
+
 
 app.delete("/admin/class/delete", (req, res) => {
   const { classId } = req.body;
@@ -201,7 +202,7 @@ app.delete("/admin/class/delete", (req, res) => {
   });
 });
 
-// Get all classes
+
 app.get("/admin/classes", (req, res) => {
   const query = `SELECT * FROM CLASS`;
   db.all(query, (err, classes) => {
@@ -222,108 +223,158 @@ app.get("/class/search", (req, res) => {
   });
 });
 
-// Book a class
+
 app.post("/class/book", (req, res) => {
   const { userId, classId } = req.body;
 
-  // Check for missing fields
   if (!userId || !classId) {
     return res.status(400).send("userId and classId are required.");
   }
 
-  const checkAvailabilityQuery = `SELECT availableSlots FROM CLASS WHERE id = ?`;
-  db.get(checkAvailabilityQuery, [classId], (err, classInfo) => {
+  const checkBookingQuery = `SELECT * FROM BOOKINGS WHERE userId = ? AND classId = ?`;
+  db.get(checkBookingQuery, [userId, classId], (err, booking) => {
     if (err) {
       console.error(err);
-      return res.status(500).send("Error checking class availability");
+      return res.status(500).send("Error checking booking");
     }
 
-    if (!classInfo || classInfo.availableSlots <= 0) {
-      return res.status(400).send("Class is fully booked or not found");
+    if (booking) {
+      return res.status(400).send("User already booked for this class");
     }
 
-    const bookQuery = `INSERT INTO BOOKINGS (userId, classId) VALUES (?, ?)`;
-    db.run(bookQuery, [userId, classId], (err) => {
+    const checkAvailabilityQuery = `SELECT availableSlots FROM CLASS WHERE id = ?`;
+    db.get(checkAvailabilityQuery, [classId], (err, classInfo) => {
       if (err) {
         console.error(err);
-        return res.status(500).send("Error booking class");
+        return res.status(500).send("Error checking class availability");
       }
 
-      const updateSlotsQuery = `UPDATE CLASS SET availableSlots = availableSlots - 1 WHERE id = ?`;
-      db.run(updateSlotsQuery, [classId], (err) => {
+      if (!classInfo || classInfo.availableSlots <= 0) {
+        return res.status(400).send("Class is fully booked or not found");
+      }
+
+      const bookQuery = `INSERT INTO BOOKINGS (userId, classId) VALUES (?, ?)`;
+      db.run(bookQuery, [userId, classId], function (err) {
         if (err) {
           console.error(err);
-          return res.status(500).send("Error updating class slots");
+          return res.status(500).send("Error booking class");
         }
-        res.status(200).send("Class booked successfully");
+
+        const updateSlotsQuery = `UPDATE CLASS SET availableSlots = availableSlots - 1 WHERE id = ?`;
+        db.run(updateSlotsQuery, [classId], (err) => {
+          if (err) {
+            console.error(err);
+            return res.status(500).send("Error updating class slots");
+          }
+
+          res.status(200).send({ success: true, message: "Class booked successfully", bookingId: this.lastID });
+        });
       });
     });
   });
 });
 
-// Cancel a reservation
-app.delete("/class/cancel", (req, res) => {
-  const { userId, classId } = req.body;
+app.get("/class/availability/:classId", (req, res) => {
+  const { classId } = req.params;
 
-  // Check for missing fields
-  if (!userId || !classId) {
-    return res.status(400).send("userId and classId are required.");
+  if (!classId) {
+    return res.status(400).send("Class ID is required.");
   }
 
-  const timeCheckQuery = `SELECT timeSlot FROM CLASS WHERE id = ?`;
-  db.get(timeCheckQuery, [classId], (err, classInfo) => {
+  const getAvailabilityQuery = `SELECT availableSlots FROM CLASS WHERE id = ?`;
+
+  db.get(getAvailabilityQuery, [classId], (err, classInfo) => {
     if (err) {
       console.error(err);
-      return res.status(500).send("Error retrieving class information");
+      return res.status(500).send("Error fetching class availability.");
     }
 
     if (!classInfo) {
-      return res.status(404).send("Class not found");
+      return res.status(404).send("Class not found.");
     }
 
-    const classTime = new Date(classInfo.timeSlot); 
-    const currentTime = new Date();
-    const cancellationDeadline = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
+    res.status(200).send({
+      success: true,
+      classId,
+      availableSlots: classInfo.availableSlots,
+    });
+  });
+});
 
-    if (classTime - currentTime < cancellationDeadline) {
-      return res.status(400).send("Cannot cancel reservation within 3 hours of the class");
+
+
+app.delete("/user/bookings/cancel/:bookingId", (req, res) => {
+  const { bookingId } = req.params;
+  const getClassQuery = `SELECT classId FROM BOOKINGS WHERE id = ?`;
+  db.get(getClassQuery, [bookingId], (err, booking) => {
+    if (err) {
+      console.error("Error retrieving booking:", err);
+      return res.status(500).send("Error retrieving booking");
     }
 
-    const cancelQuery = `DELETE FROM BOOKINGS WHERE userId = ? AND classId = ?`;
-    db.run(cancelQuery, [userId, classId], (err) => {
+    if (!booking) {
+      return res.status(404).send("Booking not found");
+    }
+
+    const { classId } = booking;
+    const deleteBookingQuery = `DELETE FROM BOOKINGS WHERE id = ?`;
+    db.run(deleteBookingQuery, [bookingId], (err) => {
       if (err) {
-        console.error(err);
-        return res.status(500).send("Error canceling reservation");
+        console.error("Error deleting booking:", err);
+        return res.status(500).send("Error canceling booking");
       }
-
       const updateSlotsQuery = `UPDATE CLASS SET availableSlots = availableSlots + 1 WHERE id = ?`;
       db.run(updateSlotsQuery, [classId], (err) => {
         if (err) {
-          console.error(err);
-          return res.status(500).send("Error updating class slots");
+          console.error("Error updating available slots:", err);
+          return res.status(500).send("Error updating available slots");
         }
-        res.status(200).send("Reservation canceled successfully");
+        res.status(200).send("Booking canceled successfully");
       });
     });
   });
 });
 
-// View user's booking history
+
 app.get("/user/bookings/:userId", (req, res) => {
   const userId = req.params.userId;
-  const query = `SELECT * FROM BOOKINGS WHERE userId = ?`;
-  db.all(query, [userId], (err, bookings) => {
+  const bookingsQuery = `SELECT * FROM BOOKINGS WHERE userId = ?`;
+  db.all(bookingsQuery, [userId], (err, bookings) => {
     if (err) {
-      console.error(err); 
+      console.error(err);
       return res.status(500).send("Error fetching booking history");
     }
-    res.status(200).json(bookings);
+    if (bookings.length === 0) {
+      return res.status(404).send("No bookings found for this user");
+    }
+    const classesQuery = `SELECT * FROM CLASS`; 
+
+    db.all(classesQuery, (err, classes) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).send("Error fetching class details");
+      }
+      const bookedClasses = bookings.map((booking) => {
+        const bookedClass = classes.find((classItem) => classItem.id === booking.classId);
+        if (bookedClass) {
+          return {
+            ...booking, 
+            className: bookedClass.name,
+            coachName: bookedClass.coachName,
+            dayOfWeek: bookedClass.dayOfWeek,
+            timeSlot: bookedClass.timeSlot,
+            duration: bookedClass.duration,
+          };
+        }
+        return null; 
+      }).filter((classDetail) => classDetail !== null);
+      res.status(200).json(bookedClasses);
+    });
   });
 });
 
-/* ==============================
-   Server Initialization
-   ============================== */
+
+
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
