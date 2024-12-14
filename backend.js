@@ -6,12 +6,9 @@ const app = express();
 const port = 8888;
 const cors = require('cors');
 app.use(cors({
-  origin: 'http://localhost:3001',  
+  origin: 'http://localhost:3000',  
 }));
 app.use(express.json());
-
-
-
 
 app.post("/user/register", (req, res) => {
   const { name, email, password, isAdmin } = req.body;
@@ -24,7 +21,7 @@ app.post("/user/register", (req, res) => {
     if (err) {
       console.error("Error hashing password:", err.message);
       return res.status(500).json({ error: 'Password hashing error.' });
-      }
+    }
 
     const query = `INSERT INTO USER (name, email, password, isAdmin, invitationsLeft) VALUES (?, ?, ?, ?, 10)`;
     db.run(query, [name, email, hashedPassword, isAdmin ? 1 : 0], (err) => {
@@ -34,17 +31,15 @@ app.post("/user/register", (req, res) => {
           return res.status(400).json({ error: 'Email already exists.' });
         }
         return res.status(500).json({ error: 'Error saving user to Database.' });
-    }
-    return res.status(200).json({ message: 'Registration successful!' });
+      }
+      return res.status(200).json({ message: 'Registration successful!' });
     });
   });
 });
 
-
 app.post("/user/login", (req, res) => {
   const { email, password } = req.body;
 
-  
   if (!email || !password) {
     return res.status(400).send("Email and password are required.");
   }
@@ -74,7 +69,6 @@ app.post("/user/login", (req, res) => {
     });
   });
 });
-
 
 app.post("/user/invite", (req, res) => {
   const { userId, invitedName, invitedAge, invitedEmail, invitedPhone } = req.body;
@@ -109,7 +103,6 @@ app.post("/user/invite", (req, res) => {
   });
 });
 
-
 app.get("/user/:userId/invitations", (req, res) => {
   const { userId } = req.params;
 
@@ -128,16 +121,13 @@ app.get("/user/:userId/invitations", (req, res) => {
   });
 });
 
-
 app.post("/admin/class/add", (req, res) => {
   const { name, coachName, dayOfWeek, timeSlot, duration, availableSlots } = req.body;
 
-  
   if (!name || !coachName || !dayOfWeek || !timeSlot || !duration) {
     return res.status(400).send("Name, coachName, dayOfWeek, timeSlot, and duration are required.");
   }
 
-  
   const defaultAvailableSlots = 15;
   const query = `INSERT INTO CLASS (name, coachName, dayOfWeek, timeSlot, duration, availableSlots) VALUES (?, ?, ?, ?, ?, ?)`;
 
@@ -150,7 +140,6 @@ app.post("/admin/class/add", (req, res) => {
 app.put("/admin/class/edit", (req, res) => {
   const { classId, coachName, timeSlot, dayOfWeek } = req.body;
 
-  
   if (!classId || !coachName || !timeSlot || !dayOfWeek) {
     return res
       .status(400)
@@ -164,7 +153,6 @@ app.put("/admin/class/edit", (req, res) => {
 
   const getClassesQuery = `SELECT * FROM CLASS`;
 
-  
   db.run(updateQuery, [coachName, timeSlot, dayOfWeek, classId], function (err) {
     if (err) {
       console.error("Error updating class:", err.message);
@@ -185,8 +173,6 @@ app.put("/admin/class/edit", (req, res) => {
   });
 });
 
-
-
 app.delete("/admin/class/delete", (req, res) => {
   const { classId } = req.body;
 
@@ -201,7 +187,6 @@ app.delete("/admin/class/delete", (req, res) => {
     res.status(200).send("Class deleted successfully");
   });
 });
-
 
 app.get("/admin/classes", (req, res) => {
   const query = `SELECT * FROM CLASS`;
@@ -222,7 +207,6 @@ app.get("/class/search", (req, res) => {
     res.status(200).json(classes);
   });
 });
-
 
 app.post("/class/book", (req, res) => {
   const { userId, classId } = req.body;
@@ -301,8 +285,6 @@ app.get("/class/availability/:classId", (req, res) => {
   });
 });
 
-
-
 app.delete("/user/bookings/cancel/:bookingId", (req, res) => {
   const { bookingId } = req.params;
   const getClassQuery = `SELECT classId FROM BOOKINGS WHERE id = ?`;
@@ -334,7 +316,6 @@ app.delete("/user/bookings/cancel/:bookingId", (req, res) => {
     });
   });
 });
-
 
 app.get("/user/bookings/:userId", (req, res) => {
   const userId = req.params.userId;
@@ -372,9 +353,6 @@ app.get("/user/bookings/:userId", (req, res) => {
     });
   });
 });
-
-
-
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
